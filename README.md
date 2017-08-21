@@ -1,2 +1,2 @@
 # Parenz
-### A LISP variant.
+A LISP variant.
