@@ -24,7 +24,11 @@ void add_history(char* unused) {}
 #include <editline/history.h>
 #endif
 
-long eval_op(long x, char* op, long y) {
+long eval_op_unary(char* op, long x) {
+    if (strcmp(op, "-") == 0) { return -x; }
+}
+
+long eval_op_binary(long x, char* op, long y) {
     if (strcmp(op, "+") == 0) { return x + y; }
     if (strcmp(op, "-") == 0) { return x - y; }
     if (strcmp(op, "*") == 0) { return x * y; }
@@ -41,9 +45,13 @@ long eval(mpc_ast_t* t) {
 
     long x = eval(t->children[2]);
 
+    if (!strstr(t->children[3]->tag, "expr")) {
+       x = eval_op_unary(op, x); 
+    }
+
     int i = 3;
     while (strstr(t->children[i]->tag, "expr")) {
-        x = eval_op(x, op, eval(t->children[i]));
+        x = eval_op_binary(x, op, eval(t->children[i]));
         i++;
     }
 
@@ -54,19 +62,21 @@ int main(int argc, char** argv) {
 
     // Create some parsers
     mpc_parser_t* Number = mpc_new("number");
-    mpc_parser_t* Operator = mpc_new("operator");
+    mpc_parser_t* UOperator = mpc_new("unaryoperator");
+    mpc_parser_t* BOperator = mpc_new("binaryoperator");
     mpc_parser_t* Expr = mpc_new("expr");
     mpc_parser_t* Parenz = mpc_new("parenz");
 
     // Define them with the following language
     mpca_lang(MPCA_LANG_DEFAULT,
-        "                                                       \
-          number    : /-?[0-9]+/ ;                              \
-          operator  : '+' | '-' | '*' | '/' | '%' ;             \
-          expr      : <number> | '(' <operator> <expr>+ ')' ;   \
-          parenz    : /^/ <operator> <expr>+ /$/ ;              \
+        "                                                                                                       \
+          number    : /-?[0-9]+/ ;                                                                              \
+          unaryoperator: '-' ;                                                                                  \
+          binaryoperator  : '+' | '-' | '*' | '/' | '%' ;                                                       \
+          expr      : <number> | '(' <binaryoperator> <expr> <expr>+ ')' | '(' <unaryoperator> <expr> ')' ;     \
+          parenz    : /^/ (<binaryoperator> <expr> <expr>+ | <unaryoperator> <expr>) /$/ ;                      \
         ",
-        Number, Operator, Expr, Parenz);
+        Number, UOperator, BOperator, Expr, Parenz);
 
     puts("Parenz Version 0.0.0.0.1");
     puts("Press Ctrl+c to Exit\n");
@@ -92,7 +102,7 @@ int main(int argc, char** argv) {
         free(input);
     }
 
-    mpc_cleanup(4, Number, Operator, Expr, Parenz);
+    mpc_cleanup(5, Number, UOperator, BOperator, Expr, Parenz);
 
     return 0;
 }
